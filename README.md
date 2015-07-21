@@ -7,12 +7,18 @@ This is an alternative to using `service: name=ezjail args=my-jail`, providing:
 * The ability to start/stop/restart/enable/disable multiple jails at once
 * Error messages pertaining to specific jails
 
+This module does not:
+
+* create or destroy jails
+* enable or disable ezjail itself (use `service: name=ezjail enabled=yes` to do this)
+* work with non-ezjail managed jails
+* stop, start, or restart ALL jails (use e.g. `service: name=ezjail state=started` to do this)
+
 ## Dependencies (Managed Node)
 
 * FreeBSD
 * [sysutils/ezjail](https://www.freshports.org/sysutils/ezjail/)
 * existing **ezjail-managed** jails
-  * *this module does not create jails, and does not work with non-ezjail jails*
 
 ## Installation
 
