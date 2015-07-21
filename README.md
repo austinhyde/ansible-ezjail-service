@@ -24,7 +24,8 @@ Similar to the built-in [service](https://docs.ansible.com/ansible/service_modul
 
 ### Options
 
-* `name` - required, the names (comma separated) of the jails to operate on **as referenced by ezjail** - this is what you gave `ezjail-admin create` unless you renamed it.
+* `name` - required, the names (comma separated) of the jails to operate on **as referenced by ezjail**
+  * this is what you gave `ezjail-admin create` unless you renamed it.
 * `state` - optional, may be "started", "stopped", or "restarted", with the same semantics as the `service` module.
 * `enabled` - optional boolean, defines whether the jail is started on boot or not. Note that ezjail jails are enabled by default after creation if the ezjail service itself is enabled.
 
