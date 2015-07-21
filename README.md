@@ -11,7 +11,8 @@ This is an alternative to using `service: name=ezjail args=my-jail`, providing:
 
 * FreeBSD
 * [sysutils/ezjail](https://www.freshports.org/sysutils/ezjail/)
-* existing **ezjail-managed** jails (this module does not create jails, and does not work with non-ezjail jails)
+* existing **ezjail-managed** jails
+  * *this module does not create jails, and does not work with non-ezjail jails*
 
 ## Installation
 
