@@ -1,0 +1,169 @@
+#!/usr/local/bin/python
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2015 Austin Hyde
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+def ezjail_rc_exists(module):
+  rc, stdout, stderr = module.run_command('ls /usr/local/etc/rc.d/ezjail', check_rc=False)
+  return rc == 0
+
+def ezjail_admin_exists(module):
+  rc, stdout, stderr = module.run_command('which ezjail-admin', check_rc=False)
+  return rc == 0
+
+def is_jail_enabled(module, jail):
+  rc, stdout, stderr = module.run_command('ezjail-admin config -r test %s' % jail, check_rc=False)
+
+  if rc != 0:
+    module.fail_json(msg='No jail named %s is recognized by ezjail' % jail)
+
+  if 'is runnable' in stdout:
+    return True
+  elif 'is not runnable' in stdout:
+    return False
+  else:
+    module.fail_json(msg='Unexpected result returned by ezjail for jail %s: %s' % (jail, stdout))
+
+def set_jail_enabled(module, jail, enabled):
+  currently_enabled = is_jail_enabled(module, jail)
+
+  # nothing to change
+  if enabled == currently_enabled:
+    return False
+
+  run = 'run' if enabled else 'norun'
+  rc, stdout, stderr = module.run_command('ezjail-admin config -r %s %s' % (run, jail))
+
+  if rc == 1:
+    module.fail_json(msg='No jail named %s is recognized by ezjail' % jail)
+
+  # successfully changed
+  return True
+
+def get_live_jails(module):
+  rc, stdout, stderr = module.run_command('jls host.hostname', check_rc=True)
+  return {line: True for line in stdout.strip().split('\n') if line}
+
+def check_jails(module, jails, state, enabled):
+  if state == 'restarted':
+    module.exit_json(changed=True, msg='%s jail(s) would be restarted')
+
+  would_be_changed = []
+  live = get_live_jails(module)
+
+  for jail in jails:
+    if (state == 'started' and jail not in live) or (state == 'stopped' and jail in live):
+      would_be_changed.append(jail)
+    else:
+      is_enabled = is_jail_enabled(module, jail)
+      if (enabled and not is_enabled) or (not enabled and is_enabled):
+        would_be_changed.append(jail)
+
+  word = 'enabled' if enabled else 'disabled'
+
+  if would_be_changed:
+    module.exit_json(changed=True, msg='%s jail(s) would be %s or %s' % (len(would_be_changed), state, word))
+  else:
+    module.exit_json(changed=False, msg='all jails are already %s or %s' % (state, word))
+
+def set_jail_state(module, jail, state, live_jails):
+  if (state == 'started' and jail in live_jails) or (state == 'stopped' and jail not in live_jails):
+    return False
+
+  state_cmd = {
+    'started': 'start',
+    'stopped': 'stop',
+    'restarted': 'restart'
+  }[state]
+  rc, stdout, stderr = module.run_command('service ezjail %s %s' % (state_cmd, jail), check_rc=False)
+
+  if rc != 0:
+    module.fail_json(msg='could not %s jail: %s' % (state_cmd, stdout))
+
+  if 'not found' in stdout:
+    module.fail_json(msg='No jail named %s is recognized by ezjail' % jail)
+
+  return True
+
+
+def main():
+  module = AnsibleModule(
+    argument_spec = dict(
+      name         = dict(required=True),
+      state        = dict(choices=['started','stopped','restarted']),
+      enabled      = dict(choices=BOOLEANS, type='bool')
+    ),
+    supports_check_mode = True
+  )
+
+
+  if not ezjail_rc_exists(module):
+    module.fail_json(msg="could not locate ezjail executable")
+
+  if not ezjail_admin_exists(module):
+    module.fail_json(msg="ezjail-admin executable was not in the path")
+
+  p = module.params
+
+  if p['state'] is None and p['enabled'] is None:
+    module.fail_json(msg="Neither 'state' nor 'enabled' set")
+
+  jails = p['name'].split(',')
+
+  if module.check_mode:
+    check_jails(module, jails, p['state'], p['enabled'])
+
+  enable_count = 0
+  state_count = 0
+
+  live_jails = get_live_jails(module)
+
+  for jail in jails:
+    if p['enabled'] is not None and set_jail_enabled(module, jail, p['enabled']):
+      enable_count += 1
+
+    if p['state'] is not None and set_jail_state(module, jail, p['state'], live_jails):
+      state_count += 1
+
+  enabled_word = 'enabled' if p['enabled'] else 'disabled'
+  m = '%s %s jails'
+  msg = []
+  if enable_count > 0:
+    msg.append(m % (enabled_word, enable_count))
+
+  if state_count > 0:
+    msg.append(m % (p['state'], state_count))
+
+  if enable_count + state_count > 0:
+    module.exit_json(changed=True, msg=msg)
+  else:
+    if p['state'] is not None and p['enabled'] is not None:
+      module.exit_json(changed=False, msg='all jails were already %s or %s' % (enabled_word, p['state']))
+    elif p['state'] is not None:
+      module.exit_json(changed=False, msg='all jails were already %s' % p['state'])
+    elif p['enabled'] is not None:
+      module.exit_json(changed=False, msg='all jails were already %s' % enabled_word)
+
+
+
+from ansible.module_utils.basic import *
+main()
