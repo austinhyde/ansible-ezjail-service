@@ -48,7 +48,7 @@ You must specify at least one of `state` and `enabled`.
 ## Todo
 
 * Add inline documentation
-* Fix support for jails with dots in them and subjails, along the lines of [austinhyde/ansible-packer PR#2](https://github.com/austinhyde/ansible-sshjail/pull/2)
+* Fix support for jails with dots in them and subjails, along the lines of [austinhyde/ansible-sshjail PR#2](https://github.com/austinhyde/ansible-sshjail/pull/2)
   * This gets tricky though because sshjail only operates on live jails...
 
 Have other ideas? Better way of doing something? Doesn't work for you? Open an issue or a pull request!
